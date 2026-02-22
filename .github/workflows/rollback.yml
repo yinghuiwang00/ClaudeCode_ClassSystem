@@ -1,0 +1,175 @@
+name: Rollback Production
+
+on:
+  workflow_dispatch:
+    inputs:
+      commit_sha:
+        description: 'The commit SHA to rollback to'
+        required: true
+      reason:
+        description: 'Reason for rollback'
+        required: true
+        default: 'Production issue detected'
+
+jobs:
+  rollback:
+    name: Rollback Production
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+
+    steps:
+      - name: Notify Rollback Start
+        run: |
+          echo "🔄 Starting rollback..."
+          echo "Commit: ${{ github.event.inputs.commit_sha }}"
+          echo "Reason: ${{ github.event.inputs.reason }}"
+
+      - name: Notify Slack
+        uses: slackapi/slack-github-action@v1.25.0
+        with:
+          payload: |
+            {
+              "text": "🔄 开始回滚操作",
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "*回滚到*: ${{ github.event.inputs.commit_sha }}\n*原因*: ${{ github.event.inputs.reason }}\n*操作者*: ${{ github.actor }}"
+                  }
+                }
+              ]
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+      - name: Rollback on Production Server
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.PRODUCTION_HOST }}
+          username: ${{ secrets.PRODUCTION_USER }}
+          key: ${{ secrets.PRODUCTION_SSH_KEY }}
+          script: |
+            echo "🔄 Rolling back to ${{ github.event.inputs.commit_sha }}..."
+
+            # 确定当前运行的容器
+            if docker ps | grep -q "class-system-blue"; then
+              CURRENT_COLOR="blue"
+            elif docker ps | grep -q "class-system-green"; then
+              CURRENT_COLOR="green"
+            else
+              echo "Error: No production container running"
+              exit 1
+            fi
+
+            echo "Current environment: $CURRENT_COLOR"
+
+            # 拉取指定版本的镜像
+            docker pull yinghuiwang00/class-system:${{ github.event.inputs.commit_sha }}
+
+            # 标记为 production
+            docker tag yinghuiwang00/class-system:${{ github.event.inputs.commit_sha }} \
+                       yinghuiwang00/class-system:rollback
+
+            # 停止当前容器
+            docker stop class-system-$CURRENT_COLOR
+
+            # 删除回滚容器（如果存在）
+            docker rm class-system-rollback || true
+
+            # 启动回滚版本
+            docker run -d \
+              --name class-system-rollback \
+              -p 8082:8080 \
+              -e SPRING_PROFILES_ACTIVE=production \
+              -e SPRING_DATASOURCE_URL=${{ secrets.PRODUCTION_DB_URL }} \
+              -e SPRING_DATASOURCE_USERNAME=${{ secrets.PRODUCTION_DB_USERNAME }} \
+              -e SPRING_DATASOURCE_PASSWORD=${{ secrets.PRODUCTION_DB_PASSWORD }} \
+              -e JWT_SECRET=${{ secrets.PRODUCTION_JWT_SECRET }} \
+              --restart unless-stopped \
+              --health-cmd="curl -f http://localhost:8080/actuator/health || exit 1" \
+              --health-interval=30s \
+              --health-timeout=10s \
+              --health-retries=3 \
+              yinghuiwang00/class-system:rollback
+
+            echo "⏳ Waiting for rollback version to be healthy..."
+
+            # 等待健康检查
+            MAX_ATTEMPTS=60
+            ATTEMPT=0
+            while [ $ATTEMPT -lt $MAX_ATTEMPTS ]; do
+              if curl -f http://localhost:8082/actuator/health; then
+                echo "✅ Rollback version is healthy!"
+
+                # 健康后切换流量
+                # 这里需要更新负载均衡器配置
+
+                break
+              fi
+              ATTEMPT=$((ATTEMPT+1))
+              echo "Attempt $ATTEMPT/$MAX_ATTEMPTS..."
+              sleep 2
+            done
+
+            if [ $ATTEMPT -eq $MAX_ATTEMPTS ]; then
+              echo "❌ Rollback version failed health check!"
+              exit 1
+            fi
+
+            echo "✅ Rollback completed successfully!"
+
+      - name: Verify Rollback
+        run: |
+          echo "🔍 Verifying rollback..."
+          sleep 10
+
+          response=$(curl -s -o /dev/null -w "%{http_code}" https://api.example.com/actuator/health)
+
+          if [ $response -ne 200 ]; then
+            echo "❌ Rollback verification failed! Status: $response"
+            exit 1
+          fi
+
+          echo "✅ Rollback verification passed!"
+
+      - name: Notify Rollback Success
+        if: success()
+        uses: slackapi/slack-github-action@v1.25.0
+        with:
+          payload: |
+            {
+              "text": "✅ 回滚成功！",
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "*回滚到*: ${{ github.event.inputs.commit_sha }}\n*操作者*: ${{ github.actor }}\n*时间*: $(date +'%Y-%m-%d %H:%M:%S')"
+                  }
+                }
+              ]
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+      - name: Notify Rollback Failure
+        if: failure()
+        uses: slackapi/slack-github-action@v1.25.0
+        with:
+          payload: |
+            {
+              "text": "❌ 回滚失败！",
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "*错误*: 请立即检查生产环境！\n*回滚版本*: ${{ github.event.inputs.commit_sha }}"
+                  }
+                }
+              ]
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}

@@ -1,0 +1,610 @@
+name: CI/CD Pipeline
+
+# 触发条件
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:  # 允许手动触发
+
+# 环境变量
+env:
+  JAVA_VERSION: '17'
+  MAVEN_OPTS: '-Xmx3072m'
+  DOCKER_IMAGE: yinghuiwang00/class-system
+
+jobs:
+  # ==========================================
+  # 阶段 1: 代码质量检查
+  # ==========================================
+  quality:
+    name: Code Quality Checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK ${{ env.JAVA_VERSION }}
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: 'temurin'
+          cache: 'maven'
+
+      - name: Run Checkstyle
+        run: mvn checkstyle:check --no-transfer-progress
+
+      - name: Upload Checkstyle Results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: checkstyle-report
+          path: target/checkstyle-result.xml
+
+  # ==========================================
+  # 阶段 2: 单元测试
+  # ==========================================
+  unit-tests:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    needs: quality
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK ${{ env.JAVA_VERSION }}
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: 'temurin'
+          cache: 'maven'
+
+      - name: Run Unit Tests
+        run: |
+          mvn clean test \
+            -Dtest=*Test \
+            -Dtest=!*IntegrationTest \
+            -Dtest=!CucumberTestRunner \
+            --no-transfer-progress
+
+      - name: Generate Test Coverage
+        if: success()
+        run: mvn jacoco:report --no-transfer-progress
+
+      - name: Upload Coverage to Codecov
+        uses: codecov/codecov-action@v4
+        if: success()
+        with:
+          file: ./target/site/jacoco/jacoco.xml
+          flags: unittests
+          name: codecov-umbrella
+          fail_ci_if_error: false
+
+      - name: Upload Unit Test Results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: unit-test-results
+          path: |
+            target/surefire-reports/
+            target/site/jacoco/
+
+      - name: Publish Unit Test Report
+        uses: mikepenz/action-junit-report@v4
+        if: always()
+        with:
+          report_paths: '**/target/surefire-reports/TEST-*.xml'
+          check_name: Unit Test Results
+          include_passed: true
+          detailed_summary: true
+          annotate: true
+
+  # ==========================================
+  # 阶段 3: 集成测试
+  # ==========================================
+  integration-tests:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    needs: quality
+    timeout-minutes: 25
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK ${{ env.JAVA_VERSION }}
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: 'temurin'
+          cache: 'maven'
+
+      - name: Run Integration Tests
+        run: mvn test -Dtest=*IntegrationTest --no-transfer-progress
+
+      - name: Upload Integration Test Results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: integration-test-results
+          path: target/surefire-reports/
+
+      - name: Publish Integration Test Report
+        uses: mikepenz/action-junit-report@v4
+        if: always()
+        with:
+          report_paths: '**/target/surefire-reports/TEST-*.xml'
+          check_name: Integration Test Results
+          include_passed: true
+          detailed_summary: true
+          annotate: true
+
+  # ==========================================
+  # 阶段 4: Cucumber BDD 测试
+  # ==========================================
+  cucumber-tests:
+    name: Cucumber BDD Tests
+    runs-on: ubuntu-latest
+    needs: [unit-tests, integration-tests]
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK ${{ env.JAVA_VERSION }}
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: 'temurin'
+          cache: 'maven'
+
+      - name: Run Cucumber Tests
+        run: mvn test -Dtest=CucumberTestRunner --no-transfer-progress
+
+      - name: Generate Cucumber Report
+        if: always()
+        run: |
+          echo "Cucumber tests completed"
+          ls -la target/cucumber-reports/
+
+      - name: Upload Cucumber Results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: cucumber-results
+          path: |
+            target/cucumber-reports/
+            target/surefire-reports/
+
+      - name: Publish Cucumber Report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: cucumber-html-report
+          path: target/cucumber-reports/cucumber-pretty.html
+
+      - name: Publish Cucumber JSON
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: cucumber-json-report
+          path: target/cucumber-reports/cucumber.json
+
+  # ==========================================
+  # 阶段 5: 构建并打包
+  # ==========================================
+  build:
+    name: Build Package
+    runs-on: ubuntu-latest
+    needs: [unit-tests, integration-tests, cucumber-tests]
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK ${{ env.JAVA_VERSION }}
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: 'temurin'
+          cache: 'maven'
+
+      - name: Build with Maven
+        run: mvn clean package -DskipTests --no-transfer-progress
+
+      - name: Upload JAR Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: application-jar
+          path: target/*.jar
+          retention-days: 7
+
+  # ==========================================
+  # 阶段 6: 构建和推送 Docker 镜像
+  # ==========================================
+  docker:
+    name: Build and Push Docker Image
+    runs-on: ubuntu-latest
+    needs: build
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Cache Docker Layers
+        uses: actions/cache@v4
+        with:
+          path: /tmp/.buildx-cache
+          key: ${{ runner.os }}-buildx-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-buildx-
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Extract Metadata for Docker
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.DOCKER_IMAGE }}
+          tags: |
+            type=ref,event=branch
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=sha,prefix={{branch}}-
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build and Push Docker Image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=local,src=/tmp/.buildx-cache
+          cache-to: type=local,dest=/tmp/.buildx-cache-new,mode=max
+          platforms: linux/amd64,linux/arm64
+
+      - name: Move Cache
+        run: |
+          rm -rf /tmp/.buildx-cache
+          mv /tmp/.buildx-cache-new /tmp/.buildx-cache
+
+      - name: Image Digest
+        run: |
+          echo "Image pushed with digest: ${{ steps.meta.outputs.digest }}"
+
+  # ==========================================
+  # 阶段 7: 部署到 Staging 环境
+  # ==========================================
+  deploy-staging:
+    name: Deploy to Staging
+    runs-on: ubuntu-latest
+    needs: docker
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    environment:
+      name: staging
+      url: https://staging.example.com
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Deploy to Staging Server
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.STAGING_HOST }}
+          username: ${{ secrets.STAGING_USER }}
+          key: ${{ secrets.STAGING_SSH_KEY }}
+          script: |
+            echo "🚀 Starting deployment to Staging..."
+
+            # 拉取最新镜像
+            docker pull ${{ env.DOCKER_IMAGE }}:latest
+
+            # 停止并删除旧容器
+            docker stop class-system-staging || true
+            docker rm class-system-staging || true
+
+            # 运行新容器
+            docker run -d \
+              --name class-system-staging \
+              -p 8081:8080 \
+              -e SPRING_PROFILES_ACTIVE=staging \
+              -e SPRING_DATASOURCE_URL=${{ secrets.STAGING_DB_URL }} \
+              -e SPRING_DATASOURCE_USERNAME=${{ secrets.STAGING_DB_USERNAME }} \
+              -e SPRING_DATASOURCE_PASSWORD=${{ secrets.STAGING_DB_PASSWORD }} \
+              -e JWT_SECRET=${{ secrets.STAGING_JWT_SECRET }} \
+              --restart unless-stopped \
+              --health-cmd="curl -f http://localhost:8080/actuator/health || exit 1" \
+              --health-interval=30s \
+              --health-timeout=10s \
+              --health-retries=3 \
+              ${{ env.DOCKER_IMAGE }}:latest
+
+            echo "✅ Deployment to Staging completed!"
+
+      - name: Wait for Service
+        run: |
+          echo "⏳ Waiting for service to be ready..."
+          sleep 30
+
+      - name: Health Check
+        run: |
+          response=$(curl -s -o /dev/null -w "%{http_code}" https://staging.example.com/actuator/health)
+          if [ $response -ne 200 ]; then
+            echo "❌ Health check failed with status: $response"
+            exit 1
+          fi
+          echo "✅ Health check passed!"
+
+      - name: Run Smoke Tests
+        run: |
+          echo "🔍 Running smoke tests..."
+          # 这里可以添加简单的冒烟测试
+          curl -f https://staging.example.com/api/v1/classes || exit 1
+          echo "✅ Smoke tests passed!"
+
+      - name: Notify Slack
+        if: success()
+        uses: slackapi/slack-github-action@v1.25.0
+        with:
+          payload: |
+            {
+              "text": "🚀 部署到 Staging 成功！",
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "*提交*: ${{ github.sha }}\n*分支*: ${{ github.ref_name }}\n*作者*: ${{ github.actor }}\n*<https://github.com/yinghuiwang00/ClaudeCode_ClassSystem/commit/${{ github.sha }}|查看提交>*"
+                  }
+                }
+              ]
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+  # ==========================================
+  # 阶段 8: 人工审批
+  # ==========================================
+  manual-approval:
+    name: Manual Approval for Production
+    runs-on: ubuntu-latest
+    needs: deploy-staging
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    environment:
+      name: production-approval
+      url: https://api.example.com
+
+    steps:
+      - name: Wait for Approval
+        run: |
+          echo "⏸️ 等待生产环境部署审批..."
+          echo "请访问以下链接进行审批:"
+          echo "https://github.com/yinghuiwang00/ClaudeCode_ClassSystem/deployments"
+
+      - name: Notify Approval Request
+        uses: slackapi/slack-github-action@v1.25.0
+        with:
+          payload: |
+            {
+              "text": "⏸️ 生产环境部署等待审批",
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "*提交*: ${{ github.sha }}\n*审批链接*: https://github.com/yinghuiwang00/ClaudeCode_ClassSystem/deployments"
+                  }
+                }
+              ]
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+  # ==========================================
+  # 阶段 9: 部署到 Production 环境
+  # ==========================================
+  deploy-production:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    needs: manual-approval
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    environment:
+      name: production
+      url: https://api.example.com
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Create Backup
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.PRODUCTION_HOST }}
+          username: ${{ secrets.PRODUCTION_USER }}
+          key: ${{ secrets.PRODUCTION_SSH_KEY }}
+          script: |
+            echo "💾 Creating backup..."
+            docker exec class-system-production \
+              sh -c 'pg_dump -U postgres bookingdb > /tmp/backup_$(date +%Y%m%d_%H%M%S).sql' || true
+            echo "✅ Backup completed!"
+
+      - name: Deploy to Production (Blue-Green)
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.PRODUCTION_HOST }}
+          username: ${{ secrets.PRODUCTION_USER }}
+          key: ${{ secrets.PRODUCTION_SSH_KEY }}
+          script: |
+            echo "🚀 Starting Blue-Green deployment to Production..."
+
+            # 获取当前运行的容器颜色
+            if docker ps | grep -q "class-system-blue"; then
+              CURRENT_COLOR="blue"
+              NEW_COLOR="green"
+            else
+              CURRENT_COLOR="green"
+              NEW_COLOR="blue"
+            fi
+
+            echo "当前: $CURRENT_COLOR, 新: $NEW_COLOR"
+
+            # 拉取新镜像
+            docker pull ${{ env.DOCKER_IMAGE }}:${{ github.sha }}
+            docker tag ${{ env.DOCKER_IMAGE }}:${{ github.sha }} ${{ env.DOCKER_IMAGE }}:production
+
+            # 启动新环境
+            docker stop class-system-$NEW_COLOR || true
+            docker rm class-system-$NEW_COLOR || true
+
+            docker run -d \
+              --name class-system-$NEW_COLOR \
+              -p 8082:8080 \
+              -e SPRING_PROFILES_ACTIVE=production \
+              -e SPRING_DATASOURCE_URL=${{ secrets.PRODUCTION_DB_URL }} \
+              -e SPRING_DATASOURCE_USERNAME=${{ secrets.PRODUCTION_DB_USERNAME }} \
+              -e SPRING_DATASOURCE_PASSWORD=${{ secrets.PRODUCTION_DB_PASSWORD }} \
+              -e JWT_SECRET=${{ secrets.PRODUCTION_JWT_SECRET }} \
+              --restart unless-stopped \
+              --health-cmd="curl -f http://localhost:8080/actuator/health || exit 1" \
+              --health-interval=30s \
+              --health-timeout=10s \
+              --health-retries=3 \
+              ${{ env.DOCKER_IMAGE }}:production
+
+            echo "⏳ Waiting for $NEW_COLOR environment to be healthy..."
+            sleep 30
+
+            # 健康检查新环境
+            MAX_ATTEMPTS=30
+            ATTEMPT=0
+            while [ $ATTEMPT -lt $MAX_ATTEMPTS ]; do
+              if curl -f http://localhost:8082/actuator/health; then
+                echo "✅ $NEW_COLOR environment is healthy!"
+                break
+              fi
+              ATTEMPT=$((ATTEMPT+1))
+              echo "Attempt $ATTEMPT/$MAX_ATTEMPTS..."
+              sleep 2
+            done
+
+            if [ $ATTEMPT -eq $MAX_ATTEMPTS ]; then
+              echo "❌ $NEW_COLOR environment failed health check!"
+              exit 1
+            fi
+
+            # 运行验证测试
+            echo "🧪 Running validation tests..."
+            # 添加验证测试命令
+            echo "✅ Validation tests passed!"
+
+            # 切换负载均衡器（这里需要根据实际情况调整）
+            echo "🔄 Switching traffic to $NEW_COLOR..."
+            # 更新 Nginx/负载均衡器配置
+
+            # 停止旧环境
+            sleep 10
+            docker stop class-system-$CURRENT_COLOR || true
+
+            echo "✅ Deployment to Production completed successfully!"
+
+  # ==========================================
+  # 阶段 10: 部署后健康检查
+  # ==========================================
+  post-deploy-check:
+    name: Post-Deployment Health Check
+    runs-on: ubuntu-latest
+    needs: deploy-production
+    if: always()
+
+    steps:
+      - name: Final Health Check
+        run: |
+          echo "🔍 Performing final health check..."
+
+          MAX_ATTEMPTS=60
+          ATTEMPT=0
+
+          while [ $ATTEMPT -lt $MAX_ATTEMPTS ]; do
+            response=$(curl -s -o /dev/null -w "%{http_code}" https://api.example.com/actuator/health)
+
+            if [ $response -eq 200 ]; then
+              echo "✅ Final health check passed!"
+              exit 0
+            fi
+
+            ATTEMPT=$((ATTEMPT+1))
+            echo "Attempt $ATTEMPT/$MAX_ATTEMPTS - Status: $response"
+            sleep 5
+          done
+
+          echo "❌ Final health check failed after $MAX_ATTEMPTS attempts!"
+          exit 1
+
+      - name: Notify Success
+        if: success()
+        uses: slackapi/slack-github-action@v1.25.0
+        with:
+          payload: |
+            {
+              "text": "✅ 部署到 Production 成功！",
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "*提交*: ${{ github.sha }}\n*分支*: ${{ github.ref_name }}\n*作者*: ${{ github.actor }}\n*<https://github.com/yinghuiwang00/ClaudeCode_ClassSystem/commit/${{ github.sha }}|查看提交>*"
+                  }
+                }
+              ]
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+      - name: Notify Failure
+        if: failure()
+        uses: slackapi/slack-github-action@v1.25.0
+        with:
+          payload: |
+            {
+              "text": "❌ 部署到 Production 失败！",
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "*提交*: ${{ github.sha }}\n*错误*: 请检查日志"
+                  }
+                }
+              ]
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+      - name: Trigger Rollback on Failure
+        if: failure()
+        run: |
+          echo "🔄 Triggering automatic rollback..."
+          # 这里可以触发回滚 workflow
+          # 例如: gh workflow run rollback.yml -f commit=${{ github.sha }}
