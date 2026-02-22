@@ -1,0 +1,1 @@
+ALTER TABLE class_schedules ADD COLUMN version BIGINT DEFAULT 0;
