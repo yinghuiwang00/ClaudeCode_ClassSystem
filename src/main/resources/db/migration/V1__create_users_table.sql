@@ -1,5 +1,7 @@
+CREATE SEQUENCE IF NOT EXISTS users_id_seq;
+
 CREATE TABLE users (
-    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    id BIGINT PRIMARY KEY DEFAULT nextval('users_id_seq'),
     username VARCHAR(50) UNIQUE NOT NULL,
     email VARCHAR(100) UNIQUE NOT NULL,
     password_hash VARCHAR(255) NOT NULL,

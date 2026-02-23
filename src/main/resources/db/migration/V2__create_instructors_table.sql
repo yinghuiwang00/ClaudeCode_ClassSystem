@@ -1,5 +1,7 @@
+CREATE SEQUENCE IF NOT EXISTS instructors_id_seq;
+
 CREATE TABLE instructors (
-    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    id BIGINT PRIMARY KEY DEFAULT nextval('instructors_id_seq'),
     user_id BIGINT UNIQUE,
     bio TEXT,
     specialization VARCHAR(100),

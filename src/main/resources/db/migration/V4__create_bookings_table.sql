@@ -1,5 +1,7 @@
+CREATE SEQUENCE IF NOT EXISTS bookings_id_seq;
+
 CREATE TABLE bookings (
-    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    id BIGINT PRIMARY KEY DEFAULT nextval('bookings_id_seq'),
     user_id BIGINT NOT NULL,
     class_schedule_id BIGINT NOT NULL,
     booking_status VARCHAR(20) DEFAULT 'CONFIRMED',
