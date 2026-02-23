@@ -24,6 +24,8 @@ services:
       - SPRING_DATASOURCE_PASSWORD=postgres
       - SPRING_DATASOURCE_DRIVER_CLASS_NAME=org.postgresql.Driver
       - SPRING_JPA_HIBERNATE_DIALECT=org.hibernate.dialect.PostgreSQLDialect
+      # 使用 PostgreSQL 专用迁移脚本
+      - SPRING_FLYWAY_LOCATIONS=classpath:db/migration/postgresql
 
       # ======================
       # JWT 配置
