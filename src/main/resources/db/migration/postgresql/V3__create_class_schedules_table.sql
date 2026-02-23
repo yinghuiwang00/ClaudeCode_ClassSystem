@@ -1,5 +1,7 @@
+CREATE SEQUENCE IF NOT EXISTS class_schedules_id_seq;
+
 CREATE TABLE class_schedules (
-    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    id BIGINT PRIMARY KEY DEFAULT nextval('class_schedules_id_seq'),
     name VARCHAR(200) NOT NULL,
     description TEXT,
     instructor_id BIGINT,

@@ -1,0 +1,3 @@
+-- Version column for optimistic locking (already included in table definitions)
+-- This is a placeholder to maintain version consistency
+-- No action needed as tables are created with the correct schema
