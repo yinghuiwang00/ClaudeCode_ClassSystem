@@ -239,6 +239,103 @@ All booking operations are protected by database-level pessimistic locks to prev
 
 ---
 
+## Development Workflow
+
+This project follows a CI/CD-based development workflow using GitHub Actions and Docker.
+
+### Standard Development Flow
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                        DEVELOPMENT WORKFLOW                               │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+1. 修改代码
+   - 编辑源代码、测试、配置文件等
+
+2. 本地测试
+   mvn test
+   确保所有 223 个测试通过
+
+3. 提交代码到 Git
+   git add -A
+   git commit -m "描述改动"
+   git push origin main
+
+4. GitHub Actions 自动触发 CI/CD Pipeline
+   - 编译代码
+   - 运行测试
+   - 构建 Docker 镜像
+   - 推送到 Docker Hub (yinghuiwang00/class-system:latest)
+
+5. 监控 Pipeline 状态
+   方式1: 浏览器访问
+   https://github.com/yinghuiwang00/ClaudeCode_ClassSystem/actions
+
+   方式2: 命令行查询
+   curl -s "https://api.github.com/repos/yinghuiwang00/ClaudeCode_ClassSystem/actions/runs?per_page=1" \
+     -H "Accept: application/vnd.github.v3+json" | \
+     python3 -c "import sys, json; d=json.load(sys.stdin); r=d.get('workflow_runs', [{}])[0]; \
+     print(f\"{r.get('run_number')}: {r.get('status')} - {r.get('conclusion', 'running')}\")"
+
+6. 如果 Pipeline 失败
+   - 查看失败日志
+   - 在本地修复问题
+   - 重新运行 mvn test
+   - 重新提交代码
+
+7. 如果 Pipeline 成功
+   - 拉取最新 Docker 镜像
+   docker pull yinghuiwang00/class-system:latest
+
+   - 停止并删除旧容器（如需要）
+   docker-compose down -v
+
+   - 启动新容器
+   docker-compose up -d
+
+   - 查看日志确认启动成功
+   docker-compose logs -f
+
+   - 验证服务正常
+   curl http://localhost:8080/actuator/health
+   open http://localhost:8080/swagger-ui.html
+```
+
+### Quick Commands Reference
+
+| 操作 | 命令 |
+|------|--------|
+| 本地测试 | `mvn test` |
+| 编译不运行测试 | `mvn clean install -DskipTests` |
+| 提交代码 | `git add -A && git commit -m "message" && git push` |
+| 查看 Pipeline | 浏览器打开 GitHub Actions 页面 |
+| 拉取最新镜像 | `docker pull yinghuiwang00/class-system:latest` |
+| 重启服务 | `docker-compose down -v && docker-compose up -d` |
+| 查看日志 | `docker-compose logs -f` |
+| 检查状态 | `docker-compose ps` |
+
+### Database Configuration
+
+This project supports multiple database configurations through Spring profiles:
+
+| Profile | Database | Usage | Migration Scripts |
+|---------|----------|--------|------------------|
+| (default) | H2 (in-memory) | Testing | `classpath:db/migration` |
+| h2 | H2 (file-based) | Local development | `classpath:db/migration` |
+| prod | PostgreSQL | Production/Docker Compose | `classpath:db/migration/postgresql` |
+
+**Switching profiles**:
+- Local development: `mvn spring-boot:run -Dspring-boot.run.profiles=h2`
+- Docker Compose: Automatically uses `prod` profile (configured in docker-compose.yml)
+
+**Important**: Migration scripts are database-specific:
+- H2 uses `AUTO_INCREMENT` syntax in `db/migration/`
+- PostgreSQL uses `SEQUENCE + nextval()` syntax in `db/migration/postgresql/`
+- Never mix these scripts - each profile uses its own migration location
+
+---
+
 ## For Claude Code: Working with this Codebase
 
 To efficiently work with this codebase in future sessions without re-scanning all files:
