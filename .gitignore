@@ -80,4 +80,5 @@ skills-lock.json
 
 # Docker data and environment files
 data/
+postgres-data/
 .env

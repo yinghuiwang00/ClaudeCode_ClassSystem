@@ -208,7 +208,7 @@ class BookingControllerTest {
     void shouldReturn500WhenNonAdminTriesToGetAllBookings() throws Exception {
         // When & Then
         mockMvc.perform(get("/api/v1/bookings"))
-            .andExpect(status().isInternalServerError());
+            .andExpect(status().isForbidden());
 
         verify(bookingService, never()).getAllBookings();
     }
@@ -252,7 +252,7 @@ class BookingControllerTest {
     void shouldReturn500WhenUserTriesToGetClassBookings() throws Exception {
         // When & Then
         mockMvc.perform(get("/api/v1/bookings/class/1"))
-            .andExpect(status().isInternalServerError());
+            .andExpect(status().isForbidden());
 
         verify(bookingService, never()).getClassBookings(anyLong());
     }

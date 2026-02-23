@@ -122,7 +122,7 @@ class UserControllerTest {
     void shouldReturn500WhenNonAdminTriesToGetUserById() throws Exception {
         // When & Then
         mockMvc.perform(get("/api/v1/users/1"))
-            .andExpect(status().isInternalServerError());
+            .andExpect(status().isForbidden());
 
         verify(userService, never()).getUserById(anyLong());
     }
@@ -163,7 +163,7 @@ class UserControllerTest {
     void shouldReturn500WhenNonAdminTriesToGetAllUsers() throws Exception {
         // When & Then
         mockMvc.perform(get("/api/v1/users"))
-            .andExpect(status().isInternalServerError());
+            .andExpect(status().isForbidden());
 
         verify(userService, never()).getAllUsers();
     }

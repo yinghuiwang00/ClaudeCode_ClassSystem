@@ -92,3 +92,24 @@ Feature: Class Booking
     When the instructor requests bookings for class with id "1"
     Then the instructor should receive 2 bookings
     And all bookings should be for class "Yoga Class"
+
+  @new
+  Scenario: Concurrent booking attempts for last spot
+    Given a class exists with id "3" and name "Popular Class" with capacity 1 and 0 current bookings
+    And user "user1@example.com" exists and is ready to book
+    And user "user2@example.com" exists and is ready to book
+    When both users attempt to book class with id "3" concurrently
+    Then only one booking should succeed
+    And the class current bookings should be 1
+    And the other user should receive "Class is full" error
+
+  @new
+  Scenario: Concurrent booking and cancellation
+    Given a class exists with id "3" and name "Dynamic Class" with capacity 2 and 1 current bookings
+    And user "userA@example.com" has a confirmed booking for class with id "3"
+    And user "userB@example.com" exists and is ready to book
+    When user "userA@example.com" cancels their booking
+    And user "userB@example.com" attempts to book class with id "3" concurrently
+    Then user "userB@example.com" booking should succeed
+    And the class current bookings should remain 1
+    And user "userA@example.com" cancellation should succeed

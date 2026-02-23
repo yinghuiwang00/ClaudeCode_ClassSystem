@@ -268,7 +268,7 @@ This project follows a CI/CD-based development workflow using GitHub Actions and
    - 构建 Docker 镜像
    - 推送到 Docker Hub (yinghuiwang00/class-system:latest)
 
-5. 监控 Pipeline 状态
+5. 监控 Pipeline 状态，间隔2分钟检查一次
    方式1: 浏览器访问
    https://github.com/yinghuiwang00/ClaudeCode_ClassSystem/actions
 
@@ -285,11 +285,11 @@ This project follows a CI/CD-based development workflow using GitHub Actions and
    - 重新提交代码
 
 7. 如果 Pipeline 成功
-   - 拉取最新 Docker 镜像
-   docker pull yinghuiwang00/class-system:latest
-
    - 停止并删除旧容器（如需要）
    docker-compose down -v
+
+   - 永远拉取最新 Docker 镜像，不要本地构建image
+   docker pull yinghuiwang00/class-system:latest
 
    - 启动新容器
    docker-compose up -d
@@ -300,6 +300,13 @@ This project follows a CI/CD-based development workflow using GitHub Actions and
    - 验证服务正常
    curl http://localhost:8080/actuator/health
    open http://localhost:8080/swagger-ui.html
+
+   - 使用cURL测试API功能
+   # 参考Instructions/curl_api_testing.md中的测试方法
+   # 示例：测试用户注册、登录、课程管理、预订功能
+   curl -X POST http://localhost:8080/api/v1/auth/register \
+     -H "Content-Type: application/json" \
+     -d '{"username":"test","email":"test@example.com","password":"test123","firstName":"Test","lastName":"User"}'
 ```
 
 ### Quick Commands Reference
@@ -314,6 +321,7 @@ This project follows a CI/CD-based development workflow using GitHub Actions and
 | 重启服务 | `docker-compose down -v && docker-compose up -d` |
 | 查看日志 | `docker-compose logs -f` |
 | 检查状态 | `docker-compose ps` |
+| API功能测试 | 参考 `Instructions/curl_api_testing.md` |
 
 ### Database Configuration
 

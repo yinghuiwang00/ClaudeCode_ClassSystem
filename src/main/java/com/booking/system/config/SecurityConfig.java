@@ -57,7 +57,7 @@ public class SecurityConfig {
                         .requestMatchers("/h2-console/**").permitAll()
                         .requestMatchers("/swagger-ui/**", "/api-docs/**", "/swagger-ui.html").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/classes/**").permitAll()
-                        .requestMatchers("/api/v1/users/**").hasAnyRole("USER", "ADMIN")
+                        .requestMatchers("/api/v1/users/**").authenticated()
                         .requestMatchers(HttpMethod.POST, "/api/v1/classes/**").hasAnyRole("ADMIN", "INSTRUCTOR")
                         .requestMatchers(HttpMethod.PUT, "/api/v1/classes/**").hasAnyRole("ADMIN", "INSTRUCTOR")
                         .requestMatchers(HttpMethod.DELETE, "/api/v1/classes/**").hasAnyRole("ADMIN", "INSTRUCTOR")
