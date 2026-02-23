@@ -77,3 +77,7 @@ skills-lock.json
 # PDF files (except for documentation if needed)
 *.pdf
 !CLAUDE.pdf
+
+# Docker data and environment files
+data/
+.env

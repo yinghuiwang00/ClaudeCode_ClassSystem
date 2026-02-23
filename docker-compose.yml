@@ -1,0 +1,101 @@
+version: '3.8'
+
+services:
+  # Spring Boot 应用程序
+  class-booking-system:
+    image: yinghuiwang00/class-system:latest
+    container_name: class-booking-system
+    ports:
+      - "8080:8080"
+    environment:
+      # ======================
+      # 数据库配置 (选择一种模式)
+      # ======================
+
+      # 模式1: H2 文件数据库 (简单, 本地持久化)
+      - SPRING_DATASOURCE_URL=jdbc:h2:file:/app/data/bookingdb;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
+      - SPRING_DATASOURCE_USERNAME=sa
+      - SPRING_DATASOURCE_PASSWORD=
+      - SPRING_DATASOURCE_DRIVER_CLASS_NAME=org.h2.Driver
+
+      # 模式2: PostgreSQL (注释上面的H2配置，取消注释下面的配置)
+      # - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/bookingdb
+      # - SPRING_DATASOURCE_USERNAME=postgres
+      # - SPRING_DATASOURCE_PASSWORD=postgres
+      # - SPRING_DATASOURCE_DRIVER_CLASS_NAME=org.postgresql.Driver
+      # - SPRING_JPA_HIBERNATE_DIALECT=org.hibernate.dialect.PostgreSQLDialect
+
+      # ======================
+      # JWT 配置
+      # ======================
+      # 生产环境应该使用更安全的密钥，不要使用默认值
+      - JWT_SECRET=${JWT_SECRET:-404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970}
+      - JWT_EXPIRATION=${JWT_EXPIRATION:-86400000}
+
+      # ======================
+      # 应用配置
+      # ======================
+      - SPRING_APPLICATION_NAME=class-booking-system
+      - SERVER_PORT=8080
+      - SPRING_H2_CONSOLE_ENABLED=true
+      - SPRING_H2_CONSOLE_PATH=/h2-console
+      - SPRING_JPA_SHOW_SQL=${SPRING_JPA_SHOW_SQL:-true}
+      - SPRING_JPA_HIBERNATE_DDL_AUTO=validate
+
+      # ======================
+      # Actuator 配置
+      # ======================
+      - SPRING_MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE=health,info,metrics,prometheus
+      - SPRING_MANAGEMENT_ENDPOINT_HEALTH_SHOW_DETAILS=always
+
+      # ======================
+      # 日志配置
+      # ======================
+      - LOGGING_LEVEL_COM_BOOKING_SYSTEM=${LOGGING_LEVEL_COM_BOOKING_SYSTEM:-DEBUG}
+      - LOGGING_LEVEL_ORG_SPRINGFRAMEWORK_SECURITY=${LOGGING_LEVEL_ORG_SPRINGFRAMEWORK_SECURITY:-DEBUG}
+
+      # ======================
+      # JVM 配置
+      # ======================
+      - JAVA_OPTS=${JAVA_OPTS:--XX:+UseContainerSupport -XX:MaxRAMPercentage=75.0}
+
+    volumes:
+      # H2 数据库数据持久化
+      - ./data:/app/data
+      # 可选: 挂载配置文件
+      # - ./config:/app/config
+
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/api/v1/classes"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+    restart: unless-stopped
+    networks:
+      - class-network
+
+  # ======================
+  # PostgreSQL 数据库 (可选)
+  # ======================
+  # 如果使用 PostgreSQL，取消注释下面的配置
+  # postgres:
+  #   image: postgres:15-alpine
+  #   container_name: class-postgres
+  #   environment:
+  #     - POSTGRES_DB=bookingdb
+  #     - POSTGRES_USER=postgres
+  #     - POSTGRES_PASSWORD=postgres
+  #   volumes:
+  #     - ./postgres-data:/var/lib/postgresql/data
+  #   ports:
+  #     - "5432:5432"
+  #   networks:
+  #     - class-network
+  #   restart: unless-stopped
+
+networks:
+  class-network:
+    driver: bridge
+
