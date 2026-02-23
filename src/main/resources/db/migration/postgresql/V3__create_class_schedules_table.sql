@@ -13,6 +13,7 @@ CREATE TABLE class_schedules (
     status VARCHAR(20) DEFAULT 'SCHEDULED',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    version BIGINT NOT NULL DEFAULT 0,
     FOREIGN KEY (instructor_id) REFERENCES instructors(id) ON DELETE SET NULL,
     CONSTRAINT check_time CHECK (end_time > start_time),
     CONSTRAINT check_capacity CHECK (current_bookings <= capacity)
