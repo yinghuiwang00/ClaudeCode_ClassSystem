@@ -39,9 +39,7 @@ services:
       # ======================
       - SPRING_APPLICATION_NAME=class-booking-system
       - SERVER_PORT=8080
-      # PostgreSQL 不需要 H2 Console
-      # - SPRING_H2_CONSOLE_ENABLED=true
-      # - SPRING_H2_CONSOLE_PATH=/h2-console
+      - SPRING_PROFILES_ACTIVE=prod
       - SPRING_JPA_SHOW_SQL=${SPRING_JPA_SHOW_SQL:-true}
       - SPRING_JPA_HIBERNATE_DDL_AUTO=validate
 

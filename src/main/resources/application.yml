@@ -10,32 +10,17 @@ spring:
     endpoint:
       health:
         show-details: always
-        show-components: always
-
-  datasource:
-    url: jdbc:h2:mem:bookingdb
-    username: sa
-    password:
-    driver-class-name: org.h2.Driver
+        show-components: true
 
   jpa:
-    hibernate:
-      ddl-auto: validate
     show-sql: true
     properties:
       hibernate:
         format_sql: true
-        dialect: org.hibernate.dialect.H2Dialect
 
   flyway:
-    enabled: true
-    locations: classpath:db/migration
+    enabled: false  # 默认禁用，通过 profile 启用
     baseline-on-migrate: true
-
-  h2:
-    console:
-      enabled: true
-      path: /h2-console
 
 server:
   port: 8080
