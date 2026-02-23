@@ -1,6 +1,16 @@
 spring:
   application:
     name: class-booking-system
+  management:
+    endpoints:
+      web:
+        exposure:
+          include: health,info,metrics,prometheus
+        base-path: /actuator
+    endpoint:
+      health:
+        show-details: always
+        show-components: always
 
   datasource:
     url: jdbc:h2:mem:bookingdb
