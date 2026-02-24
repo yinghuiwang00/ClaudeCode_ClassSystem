@@ -15,7 +15,7 @@ import java.time.LocalDateTime;
  * 封装用户相关业务逻辑
  */
 @Entity(name = "DomainUser")
-@Table(name = "users")
+@Table(name = "domain_users")
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class User extends AggregateRoot<Long> {

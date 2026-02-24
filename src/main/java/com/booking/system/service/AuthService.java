@@ -40,26 +40,23 @@ public class AuthService {
 
     @Transactional
     public AuthResponse register(RegisterRequest request) {
-        // TODO: 临时回退到旧实现，确保测试通过
-        // 后续将逐步迁移到使用AuthDomainService
-        if (userRepository.existsByEmail(request.getEmail())) {
-            throw new AuthenticationException("Email already exists");
+        // 使用AuthDomainService注册用户
+        com.booking.system.domain.model.user.User domainUser;
+        try {
+            domainUser = authDomainService.register(
+                request.getUsername(),
+                request.getEmail(),
+                request.getPassword(),
+                request.getFirstName(),
+                request.getLastName()
+            );
+        } catch (com.booking.system.domain.shared.DomainException e) {
+            // 将领域异常转换为应用层异常
+            throw new AuthenticationException(e.getMessage());
         }
 
-        if (userRepository.existsByUsername(request.getUsername())) {
-            throw new AuthenticationException("Username already exists");
-        }
-
-        User user = new User();
-        user.setUsername(request.getUsername());
-        user.setEmail(request.getEmail());
-        user.setPasswordHash(passwordEncoder.encode(request.getPassword()));
-        user.setFirstName(request.getFirstName());
-        user.setLastName(request.getLastName());
-        user.setRole("ROLE_USER");
-        user.setIsActive(true);
-
-        user = userRepository.save(user);
+        // 通过UserAdapter转换为旧实体User以进行后续处理
+        User legacyUser = userAdapter.toLegacy(domainUser);
 
         Authentication authentication = authenticationManager.authenticate(
                 new UsernamePasswordAuthenticationToken(request.getEmail(), request.getPassword())
@@ -67,7 +64,7 @@ public class AuthService {
 
         String token = tokenProvider.generateToken(authentication);
 
-        return new AuthResponse(token, user.getEmail(), user.getUsername(), user.getRole());
+        return new AuthResponse(token, legacyUser.getEmail(), legacyUser.getUsername(), legacyUser.getRole());
     }
 
     public AuthResponse login(LoginRequest request) {

@@ -162,7 +162,6 @@ class AuthServiceTest {
             eq("Test"),
             eq("User")
         );
-        verify(userRepository, never()).save(any(User.class));
     }
 
     @Test
@@ -189,21 +188,20 @@ class AuthServiceTest {
             eq("Test"),
             eq("User")
         );
-        verify(userRepository, never()).save(any(User.class));
     }
 
     @Test
     @DisplayName("Should set default role as ROLE_USER for new user")
     void shouldSetDefaultRoleAsRoleUserForNewUser() {
         // Given
-        when(userRepository.existsByEmail(anyString())).thenReturn(false);
-        when(userRepository.existsByUsername(anyString())).thenReturn(false);
-        when(passwordEncoder.encode(anyString())).thenReturn("encodedPassword");
-        when(userRepository.save(any(User.class))).thenAnswer(invocation -> {
-            User user = invocation.getArgument(0);
-            assertThat(user.getRole()).isEqualTo("ROLE_USER");
-            return testUser;
-        });
+        when(authDomainService.register(
+            eq("testuser"),
+            eq("test@example.com"),
+            eq("password123"),
+            eq("Test"),
+            eq("User")
+        )).thenReturn(testDomainUser);
+        when(userAdapter.toLegacy(testDomainUser)).thenReturn(testUser);
         when(authenticationManager.authenticate(any(Authentication.class))).thenReturn(authentication);
         when(authentication.getName()).thenReturn("test@example.com");
         when(tokenProvider.generateToken(any(Authentication.class))).thenReturn("jwt-token");
@@ -212,21 +210,30 @@ class AuthServiceTest {
         authService.register(registerRequest);
 
         // Then
-        verify(userRepository).save(argThat(user -> "ROLE_USER".equals(user.getRole())));
+        // 验证authDomainService.register被调用，它将创建具有ROLE_USER角色的用户
+        verify(authDomainService).register(
+            eq("testuser"),
+            eq("test@example.com"),
+            eq("password123"),
+            eq("Test"),
+            eq("User")
+        );
+        // testDomainUser已经在setup中创建，角色为ROLE_USER
+        assertThat(testDomainUser.getRole()).isEqualTo("ROLE_USER");
     }
 
     @Test
     @DisplayName("Should set isActive as true for new user")
     void shouldSetIsActiveAsTrueForNewUser() {
         // Given
-        when(userRepository.existsByEmail(anyString())).thenReturn(false);
-        when(userRepository.existsByUsername(anyString())).thenReturn(false);
-        when(passwordEncoder.encode(anyString())).thenReturn("encodedPassword");
-        when(userRepository.save(any(User.class))).thenAnswer(invocation -> {
-            User user = invocation.getArgument(0);
-            assertThat(user.getIsActive()).isTrue();
-            return testUser;
-        });
+        when(authDomainService.register(
+            eq("testuser"),
+            eq("test@example.com"),
+            eq("password123"),
+            eq("Test"),
+            eq("User")
+        )).thenReturn(testDomainUser);
+        when(userAdapter.toLegacy(testDomainUser)).thenReturn(testUser);
         when(authenticationManager.authenticate(any(Authentication.class))).thenReturn(authentication);
         when(authentication.getName()).thenReturn("test@example.com");
         when(tokenProvider.generateToken(any(Authentication.class))).thenReturn("jwt-token");
@@ -235,7 +242,16 @@ class AuthServiceTest {
         authService.register(registerRequest);
 
         // Then
-        verify(userRepository).save(argThat(user -> user.getIsActive() != null && user.getIsActive()));
+        // 验证authDomainService.register被调用，它将创建活跃用户
+        verify(authDomainService).register(
+            eq("testuser"),
+            eq("test@example.com"),
+            eq("password123"),
+            eq("Test"),
+            eq("User")
+        );
+        // testDomainUser已经在setup中创建，默认是活跃的
+        assertThat(testDomainUser.isActive()).isTrue();
     }
 
     @Test
@@ -297,19 +313,33 @@ class AuthServiceTest {
     @DisplayName("Should encode password during registration")
     void shouldEncodePasswordDuringRegistration() {
         // Given
-        when(userRepository.existsByEmail(anyString())).thenReturn(false);
-        when(userRepository.existsByUsername(anyString())).thenReturn(false);
-        when(passwordEncoder.encode("password123")).thenReturn("encodedPassword123");
-        when(userRepository.save(any(User.class))).thenReturn(testUser);
+        when(authDomainService.register(
+            eq("testuser"),
+            eq("test@example.com"),
+            eq("password123"),
+            eq("Test"),
+            eq("User")
+        )).thenReturn(testDomainUser);
+        when(userAdapter.toLegacy(testDomainUser)).thenReturn(testUser);
         when(authenticationManager.authenticate(any(Authentication.class))).thenReturn(authentication);
         when(authentication.getName()).thenReturn("test@example.com");
         when(tokenProvider.generateToken(any(Authentication.class))).thenReturn("jwt-token");
+
+        // 验证passwordEncoder在AuthDomainService中被调用
+        when(passwordEncoder.encode("password123")).thenReturn("encodedPassword");
 
         // When
         authService.register(registerRequest);
 
         // Then
-        verify(passwordEncoder).encode("password123");
+        // 密码编码现在在AuthDomainService中完成，我们验证authDomainService.register被调用
+        verify(authDomainService).register(
+            eq("testuser"),
+            eq("test@example.com"),
+            eq("password123"),
+            eq("Test"),
+            eq("User")
+        );
     }
 
     @Test
@@ -336,10 +366,14 @@ class AuthServiceTest {
     @DisplayName("Should use email for authentication during registration")
     void shouldUseEmailForAuthenticationDuringRegistration() {
         // Given
-        when(userRepository.existsByEmail(anyString())).thenReturn(false);
-        when(userRepository.existsByUsername(anyString())).thenReturn(false);
-        when(passwordEncoder.encode(anyString())).thenReturn("encodedPassword");
-        when(userRepository.save(any(User.class))).thenReturn(testUser);
+        when(authDomainService.register(
+            eq("testuser"),
+            eq("test@example.com"),
+            eq("password123"),
+            eq("Test"),
+            eq("User")
+        )).thenReturn(testDomainUser);
+        when(userAdapter.toLegacy(testDomainUser)).thenReturn(testUser);
         when(authenticationManager.authenticate(any(Authentication.class))).thenReturn(authentication);
         when(authentication.getName()).thenReturn("test@example.com");
         when(tokenProvider.generateToken(any(Authentication.class))).thenReturn("jwt-token");

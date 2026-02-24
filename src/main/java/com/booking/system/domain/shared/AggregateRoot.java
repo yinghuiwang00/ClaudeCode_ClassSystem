@@ -46,6 +46,13 @@ public abstract class AggregateRoot<ID> extends AbstractAggregateRoot<AggregateR
     }
 
     /**
+     * 设置版本号（仅限Repository和特殊场景使用）
+     */
+    public void setVersion(Long version) {
+        this.version = version;
+    }
+
+    /**
      * 注册领域事件
      * @param event 领域事件
      * @param <T> 事件类型
