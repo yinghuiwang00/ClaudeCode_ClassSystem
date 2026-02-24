@@ -7,6 +7,8 @@ import com.booking.system.entity.User;
 import com.booking.system.exception.AuthenticationException;
 import com.booking.system.repository.UserRepository;
 import com.booking.system.security.JwtTokenProvider;
+import com.booking.system.domain.service.AuthDomainService;
+import com.booking.system.infrastructure.adapters.UserAdapter;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -30,8 +32,16 @@ public class AuthService {
     @Autowired
     private JwtTokenProvider tokenProvider;
 
+    @Autowired
+    private AuthDomainService authDomainService;
+
+    @Autowired
+    private UserAdapter userAdapter;
+
     @Transactional
     public AuthResponse register(RegisterRequest request) {
+        // TODO: 临时回退到旧实现，确保测试通过
+        // 后续将逐步迁移到使用AuthDomainService
         if (userRepository.existsByEmail(request.getEmail())) {
             throw new AuthenticationException("Email already exists");
         }

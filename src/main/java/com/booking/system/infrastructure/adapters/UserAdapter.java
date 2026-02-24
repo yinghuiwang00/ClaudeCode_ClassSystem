@@ -2,11 +2,13 @@ package com.booking.system.infrastructure.adapters;
 
 import com.booking.system.domain.model.user.User;
 import com.booking.system.domain.model.shared.Email;
+import org.springframework.stereotype.Component;
 
 /**
  * User防腐层适配器
  * 负责新旧User对象之间的转换
  */
+@Component
 public class UserAdapter {
 
     /**

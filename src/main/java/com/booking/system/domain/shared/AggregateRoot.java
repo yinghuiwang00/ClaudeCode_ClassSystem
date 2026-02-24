@@ -32,9 +32,9 @@ public abstract class AggregateRoot<ID> extends AbstractAggregateRoot<AggregateR
     }
 
     /**
-     * 设置聚合根ID（仅限测试和特殊场景使用）
+     * 设置聚合根ID（仅限Repository和特殊场景使用）
      */
-    protected void setId(ID id) {
+    public void setId(ID id) {
         this.id = id;
     }
 

@@ -7,6 +7,7 @@ import com.booking.system.entity.User;
 import com.booking.system.exception.AuthenticationException;
 import com.booking.system.repository.UserRepository;
 import com.booking.system.security.JwtTokenProvider;
+import com.booking.system.domain.model.shared.Email;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -46,6 +47,12 @@ class AuthServiceTest {
     private JwtTokenProvider tokenProvider;
 
     @Mock
+    private com.booking.system.domain.service.AuthDomainService authDomainService;
+
+    @Mock
+    private com.booking.system.infrastructure.adapters.UserAdapter userAdapter;
+
+    @Mock
     private Authentication authentication;
 
     @InjectMocks
@@ -54,6 +61,7 @@ class AuthServiceTest {
     private RegisterRequest registerRequest;
     private LoginRequest loginRequest;
     private User testUser;
+    private com.booking.system.domain.model.user.User testDomainUser;
 
     @BeforeEach
     void setUp() {
@@ -76,16 +84,33 @@ class AuthServiceTest {
         testUser.setLastName("User");
         testUser.setRole("ROLE_USER");
         testUser.setIsActive(true);
+
+        // 创建领域用户对象
+        testDomainUser = com.booking.system.domain.model.user.User.create(
+            "testuser",
+            Email.of("test@example.com"),
+            "Test",
+            "User",
+            "encodedPassword",
+            "ROLE_USER"
+        );
+        // 设置ID
+        testDomainUser.setId(1L);
     }
 
     @Test
     @DisplayName("Should register new user successfully")
     void shouldRegisterNewUserSuccessfully() {
         // Given
-        when(userRepository.existsByEmail(anyString())).thenReturn(false);
-        when(userRepository.existsByUsername(anyString())).thenReturn(false);
-        when(passwordEncoder.encode(anyString())).thenReturn("encodedPassword");
-        when(userRepository.save(any(User.class))).thenReturn(testUser);
+        when(authDomainService.register(
+            eq("testuser"),
+            eq("test@example.com"),
+            eq("password123"),
+            eq("Test"),
+            eq("User")
+        )).thenReturn(testDomainUser);
+
+        when(userAdapter.toLegacy(testDomainUser)).thenReturn(testUser);
         when(authenticationManager.authenticate(any(Authentication.class))).thenReturn(authentication);
         when(authentication.getName()).thenReturn("test@example.com");
         when(tokenProvider.generateToken(any(Authentication.class))).thenReturn("jwt-token");
@@ -100,22 +125,43 @@ class AuthServiceTest {
         assertThat(response.getUsername()).isEqualTo("testuser");
         assertThat(response.getRole()).isEqualTo("ROLE_USER");
 
-        verify(userRepository).save(any(User.class));
+        verify(authDomainService).register(
+            eq("testuser"),
+            eq("test@example.com"),
+            eq("password123"),
+            eq("Test"),
+            eq("User")
+        );
+        verify(userAdapter).toLegacy(testDomainUser);
         verify(authenticationManager).authenticate(any(Authentication.class));
         verify(tokenProvider).generateToken(any(Authentication.class));
+        // 注意：现在不再直接调用userRepository.save
     }
 
     @Test
     @DisplayName("Should throw exception when email already exists during registration")
     void shouldThrowExceptionWhenEmailExistsDuringRegistration() {
         // Given
-        when(userRepository.existsByEmail(anyString())).thenReturn(true);
+        when(authDomainService.register(
+            eq("testuser"),
+            eq("test@example.com"),
+            eq("password123"),
+            eq("Test"),
+            eq("User")
+        )).thenThrow(new com.booking.system.domain.shared.DomainException("Email already exists"));
 
         // When & Then
         assertThatThrownBy(() -> authService.register(registerRequest))
             .isInstanceOf(AuthenticationException.class)
             .hasMessageContaining("Email already exists");
 
+        verify(authDomainService).register(
+            eq("testuser"),
+            eq("test@example.com"),
+            eq("password123"),
+            eq("Test"),
+            eq("User")
+        );
         verify(userRepository, never()).save(any(User.class));
     }
 
@@ -123,14 +169,26 @@ class AuthServiceTest {
     @DisplayName("Should throw exception when username already exists during registration")
     void shouldThrowExceptionWhenUsernameExistsDuringRegistration() {
         // Given
-        when(userRepository.existsByEmail(anyString())).thenReturn(false);
-        when(userRepository.existsByUsername(anyString())).thenReturn(true);
+        when(authDomainService.register(
+            eq("testuser"),
+            eq("test@example.com"),
+            eq("password123"),
+            eq("Test"),
+            eq("User")
+        )).thenThrow(new com.booking.system.domain.shared.DomainException("Username already exists"));
 
         // When & Then
         assertThatThrownBy(() -> authService.register(registerRequest))
             .isInstanceOf(AuthenticationException.class)
             .hasMessageContaining("Username already exists");
 
+        verify(authDomainService).register(
+            eq("testuser"),
+            eq("test@example.com"),
+            eq("password123"),
+            eq("Test"),
+            eq("User")
+        );
         verify(userRepository, never()).save(any(User.class));
     }
 
