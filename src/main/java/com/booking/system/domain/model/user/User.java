@@ -14,7 +14,7 @@ import java.time.LocalDateTime;
  * User聚合根
  * 封装用户相关业务逻辑
  */
-@Entity
+@Entity(name = "DomainUser")
 @Table(name = "users")
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
